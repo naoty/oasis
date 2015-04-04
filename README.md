@@ -1,6 +1,6 @@
 # oasis
 
-A HTTP proxy building a docker container for a branch specified at subdomain
+A HTTP proxy building docker containers for each commits
 
 ## Usage
 
