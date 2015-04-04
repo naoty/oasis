@@ -31,6 +31,10 @@ var StartCommand = cli.Command{
 			Name:  "backend",
 			Usage: "backend host which the proxy redirects to",
 		},
+		cli.StringFlag{
+			Name:  "repo",
+			Usage: "repository URL",
+		},
 	},
 	Action: start,
 }
@@ -38,12 +42,13 @@ var StartCommand = cli.Command{
 func start(c *cli.Context) {
 	host := c.String("host")
 	backend := c.String("backend")
+	repo := c.String("repo")
 
-	if host == "" || backend == "" {
+	if host == "" || backend == "" || repo == "" {
 		cli.ShowCommandHelp(c, "start")
 	}
 
-	proxy := Proxy{Host: host, BackendHost: backend}
+	proxy := Proxy{Host: host, BackendHost: backend, Repository: repo}
 	log.Fatal(proxy.Start())
 }
 
@@ -73,7 +78,7 @@ func inspect(c *cli.Context) {
 	port, err := index.LookupPort(repo, revision)
 
 	if err == nil {
-		fmt.Printf("Port found: %d\n", port)
+		fmt.Printf("Port found: %s\n", port)
 	} else {
 		fmt.Printf("Error: %s\n", err)
 	}
