@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -14,7 +15,7 @@ func main() {
 	app.Version = "0.0.1"
 	app.Author = "Naoto Kaneko"
 	app.Email = "naoty.k@gmail.com"
-	app.Commands = []cli.Command{StartCommand}
+	app.Commands = []cli.Command{StartCommand, InspectCommand}
 	app.Run(os.Args)
 }
 
@@ -44,4 +45,36 @@ func start(c *cli.Context) {
 
 	proxy := Proxy{Host: host, BackendHost: backend}
 	log.Fatal(proxy.Start())
+}
+
+var InspectCommand = cli.Command{
+	Name:  "inspect",
+	Usage: "inspect for debug",
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name: "repo",
+		},
+		cli.StringFlag{
+			Name: "revision",
+		},
+	},
+	Action: inspect,
+}
+
+func inspect(c *cli.Context) {
+	repo := c.String("repo")
+	revision := c.String("revision")
+
+	if repo == "" || revision == "" {
+		cli.ShowCommandHelp(c, "inspect")
+	}
+
+	index := LoadIndex()
+	port, err := index.LookupPort(repo, revision)
+
+	if err == nil {
+		fmt.Printf("Port found: %d\n", port)
+	} else {
+		fmt.Printf("Error: %s\n", err)
+	}
 }
