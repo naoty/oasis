@@ -28,8 +28,8 @@ func (p Proxy) Start() error {
 		req.URL.Host = backendURL.Host
 		req.URL.Path = singleJoiningSlash(backendURL.Path, req.URL.Path)
 
-		// TODO: Get the revision from the subdomain.
-		port, err := index.LookupPort(p.Repository, "master")
+		subdomain := parseSubdomain(req.Host)
+		port, err := index.LookupPort(p.Repository, subdomain)
 		if err == nil {
 			req.URL.Host = req.URL.Host + ":" + port
 		}
@@ -52,6 +52,11 @@ func (p Proxy) Start() error {
 
 	fmt.Printf("Listening: %s\n", p.Host)
 	return server.ListenAndServe()
+}
+
+func parseSubdomain(host string) string {
+	labels := strings.Split(host, ".")
+	return labels[0]
 }
 
 func singleJoiningSlash(a, b string) string {
