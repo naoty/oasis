@@ -23,31 +23,32 @@ var StartCommand = cli.Command{
 	Usage: "start a HTTP proxy",
 	Flags: []cli.Flag{
 		cli.StringFlag{
-			Name:  "host",
-			Usage: "host for the proxy to listen to",
+			Name:  "proxy",
+			Usage: "Proxy host",
 		},
 		cli.StringFlag{
 			Name:  "backend",
-			Usage: "backend host which the proxy redirects to",
+			Usage: "Backend host",
 		},
 		cli.StringFlag{
-			Name:  "repo",
-			Usage: "repository URL",
+			Name:  "repository",
+			Usage: "Repository URL",
 		},
 	},
 	Action: start,
 }
 
 func start(c *cli.Context) {
-	host := c.String("host")
-	backend := c.String("backend")
-	repo := c.String("repo")
+	proxyHost := c.String("proxy")
+	backendHost := c.String("backend")
+	repositoryURLString := c.String("repository")
 
-	if host == "" || backend == "" || repo == "" {
+	if proxyHost == "" || backendHost == "" || repositoryURLString == "" {
 		cli.ShowCommandHelp(c, "start")
+		os.Exit(1)
 	}
 
-	proxy := Proxy{Host: host, BackendHost: backend, Repository: repo}
+	proxy := NewProxy(proxyHost, backendHost, repositoryURLString)
 	log.Fatal(proxy.Start())
 }
 
@@ -66,12 +67,10 @@ var DebugCommand = cli.Command{
 }
 
 func debug(c *cli.Context) {
-	repo := c.String("repo")
+	repo := c.String("repository")
 	revision := c.String("revision")
 
 	if repo == "" || revision == "" {
 		cli.ShowCommandHelp(c, "debug")
 	}
-
-	NewWorkspace(repo, revision)
 }

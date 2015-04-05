@@ -3,8 +3,11 @@ package main
 import (
 	"bytes"
 	"io/ioutil"
+	"log"
+	"net/url"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 )
 
@@ -22,9 +25,10 @@ func LoadIndex() *Index {
 	return &Index{Root: root}
 }
 
-func (i *Index) LookupPort(repo, revision string) (string, error) {
+func (i *Index) LookupPort(repositoryURLString, revision string) (string, error) {
 	absRoot, _ := filepath.Abs(i.Root)
-	portFile := filepath.Join(absRoot, repo, revision)
+	repositoryPath := parseRepositoryPath(repositoryURLString)
+	portFile := filepath.Join(absRoot, repositoryPath, revision)
 	err := lookupFile(portFile)
 
 	if err != nil {
@@ -38,6 +42,15 @@ func (i *Index) LookupPort(repo, revision string) (string, error) {
 	} else {
 		return "", err
 	}
+}
+
+func parseRepositoryPath(repositoryURLString string) string {
+	repositoryURL, err := url.Parse(repositoryURLString)
+	if err != nil {
+		log.Fatalf("URL parse error: %s", err)
+	}
+
+	return path.Join(repositoryURL.Host, repositoryURL.Path)
 }
 
 func lookupFile(path string) error {
