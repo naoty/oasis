@@ -8,7 +8,7 @@ A HTTP proxy building docker containers for each commits
 % oasis start --host feature.example.com --repo https://github.com/naoty/sample_rails_app
 ```
 
-When the proxy receives a request to `http://master.example.com`, it will do below things.
+When the proxy receives a request to `http://feature.example.com`, it will do below things.
 
 1. Clone `https://github.com/naoty/sample_rails_app`.
 2. Checkout the repo to `feature`.
