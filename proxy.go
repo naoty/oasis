@@ -24,16 +24,18 @@ func (p Proxy) Start() error {
 	index := LoadIndex()
 	backendQuery := backendURL.RawQuery
 	director := func(req *http.Request) {
-		req.URL.Scheme = backendURL.Scheme
-		req.URL.Host = backendURL.Host
-		req.URL.Path = singleJoiningSlash(backendURL.Path, req.URL.Path)
-
 		subdomain := parseSubdomain(req.Host)
 		port, err := index.LookupPort(p.Repository, subdomain)
-		if err == nil {
-			req.URL.Host = req.URL.Host + ":" + port
+
+		if err != nil {
+			workspace := NewWorkspace(p.Repository, subdomain)
+			workspace.Run()
+			port = workspace.InspectPort()
 		}
-		// TODO: Build and run a container if the port is not found.
+
+		req.URL.Scheme = backendURL.Scheme
+		req.URL.Host = backendURL.Host + ":" + port
+		req.URL.Path = singleJoiningSlash(backendURL.Path, req.URL.Path)
 
 		if backendQuery == "" || req.URL.RawQuery == "" {
 			req.URL.RawQuery = backendQuery + req.URL.RawQuery

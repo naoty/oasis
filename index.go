@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	RootDir = ".oasis"
+	IndexRootDir = ".oasis/index"
 )
 
 type Index struct {
@@ -18,7 +18,7 @@ type Index struct {
 
 func LoadIndex() *Index {
 	usr, _ := user.Current()
-	root := filepath.Join(usr.HomeDir, RootDir)
+	root := filepath.Join(usr.HomeDir, IndexRootDir)
 	return &Index{Root: root}
 }
 

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 
@@ -15,7 +14,7 @@ func main() {
 	app.Version = "0.0.1"
 	app.Author = "Naoto Kaneko"
 	app.Email = "naoty.k@gmail.com"
-	app.Commands = []cli.Command{StartCommand, InspectCommand}
+	app.Commands = []cli.Command{StartCommand, DebugCommand}
 	app.Run(os.Args)
 }
 
@@ -52,9 +51,9 @@ func start(c *cli.Context) {
 	log.Fatal(proxy.Start())
 }
 
-var InspectCommand = cli.Command{
-	Name:  "inspect",
-	Usage: "inspect for debug",
+var DebugCommand = cli.Command{
+	Name:  "debug",
+	Usage: "debug",
 	Flags: []cli.Flag{
 		cli.StringFlag{
 			Name: "repo",
@@ -63,23 +62,16 @@ var InspectCommand = cli.Command{
 			Name: "revision",
 		},
 	},
-	Action: inspect,
+	Action: debug,
 }
 
-func inspect(c *cli.Context) {
+func debug(c *cli.Context) {
 	repo := c.String("repo")
 	revision := c.String("revision")
 
 	if repo == "" || revision == "" {
-		cli.ShowCommandHelp(c, "inspect")
+		cli.ShowCommandHelp(c, "debug")
 	}
 
-	index := LoadIndex()
-	port, err := index.LookupPort(repo, revision)
-
-	if err == nil {
-		fmt.Printf("Port found: %s\n", port)
-	} else {
-		fmt.Printf("Error: %s\n", err)
-	}
+	NewWorkspace(repo, revision)
 }
