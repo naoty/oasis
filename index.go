@@ -3,57 +3,39 @@ package main
 import (
 	"bytes"
 	"io/ioutil"
-	"log"
 	"net/url"
 	"os"
 	"os/user"
 	"path"
-	"path/filepath"
-)
-
-const (
-	IndexRootDir = ".oasis/index"
 )
 
 type Index struct {
-	Root string
+	RootDir       string
+	RepositoryURL *url.URL
 }
 
-func LoadIndex() *Index {
-	usr, _ := user.Current()
-	root := filepath.Join(usr.HomeDir, IndexRootDir)
-	return &Index{Root: root}
+func NewIndex(repositoryURL *url.URL) *Index {
+	currentUser, _ := user.Current()
+	rootDir := path.Join(currentUser.HomeDir, ".oasis/index")
+	return &Index{RootDir: rootDir, RepositoryURL: repositoryURL}
 }
 
-func (i *Index) LookupPort(repositoryURLString, revision string) (string, error) {
-	absRoot, _ := filepath.Abs(i.Root)
-	repositoryPath := parseRepositoryPath(repositoryURLString)
-	portFile := filepath.Join(absRoot, repositoryPath, revision)
-	err := lookupFile(portFile)
-
+func (index *Index) LookupPort(revision string) (string, error) {
+	portFilePath := path.Join(index.RootDir, index.RepositoryURL.Host, index.RepositoryURL.Path, revision)
+	err := lookupPath(portFilePath)
 	if err != nil {
 		return "", err
 	}
 
-	b, err := ioutil.ReadFile(portFile)
-
+	binary, err := ioutil.ReadFile(portFilePath)
 	if err == nil {
-		return string(bytes.Trim(b, "\n")), nil
+		return string(bytes.Trim(binary, "\n")), nil
 	} else {
 		return "", err
 	}
 }
 
-func parseRepositoryPath(repositoryURLString string) string {
-	repositoryURL, err := url.Parse(repositoryURLString)
-	if err != nil {
-		log.Fatalf("URL parse error: %s", err)
-	}
-
-	return path.Join(repositoryURL.Host, repositoryURL.Path)
-}
-
-func lookupFile(path string) error {
+func lookupPath(path string) error {
 	_, err := os.Stat(path)
 	return err
 }

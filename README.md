@@ -5,7 +5,10 @@ A HTTP proxy building docker containers for each commits
 ## Usage
 
 ```sh
-% oasis start --host feature.example.com --repo https://github.com/naoty/sample_rails_app
+% oasis start \
+  --proxy feature.example.com \
+  --container-host "$(docker-machine ip dev)" \
+  --repository github.com/naoty/sample_rails_app
 ```
 
 When the proxy receives a request to `http://feature.example.com`, it will do below things.

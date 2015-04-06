@@ -1,106 +1,75 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"regexp"
 	"strings"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 type Proxy struct {
-	URL        *url.URL
-	BackendURL *url.URL
-	Repository *Repository
+	URL              *url.URL
+	ContainerHostURL *url.URL
+	Workspace        *Workspace
+	Index            *Index
 }
 
-func NewProxy(host, backendHost, repositoryURLString string) *Proxy {
-	hostURL, err := url.Parse(normalizeURLString(host))
-	if err != nil {
-		log.Fatalf("URL parse error: %s", err)
+func NewProxy(proxyURL, containerHostURL, repositoryURL *url.URL) *Proxy {
+	workspace := NewWorkspace(repositoryURL)
+	index := NewIndex(repositoryURL)
+	return &Proxy{
+		URL:              proxyURL,
+		ContainerHostURL: containerHostURL,
+		Workspace:        workspace,
+		Index:            index,
 	}
-
-	backendURL, err := url.Parse(normalizeURLString(backendHost))
-	if err != nil {
-		log.Fatalf("URL parse error: %s", err)
-	}
-
-	repository := NewRepository(repositoryURLString, "master")
-
-	return &Proxy{URL: hostURL, BackendURL: backendURL, Repository: repository}
 }
 
-func (p Proxy) Start() error {
-	index := LoadIndex()
-	director := func(req *http.Request) {
-		subdomain := parseSubdomain(req.Host)
-
-		port, err := index.LookupPort(p.Repository.RemoteURL.String(), subdomain)
-		if err != nil {
-			// TODO: Inspect the port of the docker host for a container
-			p.Repository.Checkout(subdomain)
-			port = ""
-			// revision := p.Repository.Checkout(subdomain)
-			// revision.BuildAndRun()
-			// port = revision.InspectPort()
-		}
-
-		req.URL = rewriteURL(req.URL, p.BackendURL)
-		req.URL.Host = fmt.Sprintf("%s:%s", req.URL.Host, port)
-
-		log.Printf("Redirect to: %s\n", req.URL.String())
-	}
-
+func (proxy *Proxy) Start() error {
+	director := proxy.newDirector()
 	reverseProxy := &httputil.ReverseProxy{Director: director}
-	server := http.Server{
-		Addr:    p.URL.Host,
-		Handler: reverseProxy,
-	}
+	server := http.Server{Addr: proxy.URL.Host, Handler: reverseProxy}
 
-	fmt.Printf("Listening: %s\n", p.URL.Host)
+	log.WithFields(log.Fields{
+		"url": proxy.URL.String(),
+	}).Info("Start a proxy")
+
 	return server.ListenAndServe()
 }
 
-var schemePattern = regexp.MustCompile("^[^:]+://")
+func (proxy *Proxy) newDirector() func(request *http.Request) {
+	return func(request *http.Request) {
+		subdomain := proxy.parseSubdomain(request.Host)
+		port, err := proxy.Index.LookupPort(subdomain)
 
-func normalizeURLString(urlString string) string {
-	if schemePattern.MatchString(urlString) {
-		return urlString
-	} else {
-		return "http://" + urlString
+		if err != nil {
+			proxy.Workspace.Setup(subdomain)
+			port = "8000"
+		}
+
+		targetURL := proxy.rewriteURL(request.URL, port)
+
+		log.WithFields(log.Fields{
+			"original": request.Host,
+			"target":   targetURL.Host,
+		}).Info("Redirect a request")
+
+		request.URL = targetURL
 	}
 }
 
-func parseSubdomain(host string) string {
+func (proxy *Proxy) parseSubdomain(host string) string {
 	labels := strings.Split(host, ".")
 	return labels[0]
 }
 
-func rewriteURL(originalURL, backendURL *url.URL) (newURL *url.URL) {
-	newURL = new(url.URL)
-
-	newURL.Scheme = backendURL.Scheme
-	newURL.Host = backendURL.Host
-	newURL.Path = singleJoiningSlash(backendURL.Path, originalURL.Path)
-
-	if backendURL.RawQuery == "" || originalURL.RawQuery == "" {
-		newURL.RawQuery = backendURL.RawQuery + originalURL.RawQuery
-	} else {
-		newURL.RawQuery = backendURL.RawQuery + "&" + originalURL.RawQuery
+func (proxy *Proxy) rewriteURL(originalURL *url.URL, port string) *url.URL {
+	return &url.URL{
+		Scheme:   proxy.ContainerHostURL.Scheme,
+		Host:     proxy.ContainerHostURL.Host + ":" + port,
+		Path:     originalURL.Path,
+		RawQuery: originalURL.RawQuery,
 	}
-	return newURL
-}
-
-func singleJoiningSlash(a, b string) string {
-	aslash := strings.HasSuffix(a, "/")
-	bslash := strings.HasSuffix(b, "/")
-	switch {
-	case aslash && bslash:
-		return a + b[1:]
-	case !aslash && !bslash:
-		return a + "/" + b
-	}
-	return a + b
 }

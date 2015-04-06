@@ -1,10 +1,13 @@
 package main
 
 import (
-	"log"
+	"net/url"
 	"os"
+	"regexp"
 
 	"github.com/codegangsta/cli"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 func main() {
@@ -14,7 +17,7 @@ func main() {
 	app.Version = "0.0.1"
 	app.Author = "Naoto Kaneko"
 	app.Email = "naoty.k@gmail.com"
-	app.Commands = []cli.Command{StartCommand, DebugCommand}
+	app.Commands = []cli.Command{StartCommand}
 	app.Run(os.Args)
 }
 
@@ -23,54 +26,71 @@ var StartCommand = cli.Command{
 	Usage: "start a HTTP proxy",
 	Flags: []cli.Flag{
 		cli.StringFlag{
-			Name:  "proxy",
-			Usage: "Proxy host",
+			Name:  "proxy, p",
+			Usage: "Proxy URL",
 		},
 		cli.StringFlag{
-			Name:  "backend",
-			Usage: "Backend host",
+			Name:  "container-host, c",
+			Usage: "Container Host URL",
 		},
 		cli.StringFlag{
-			Name:  "repository",
+			Name:  "repository, r",
 			Usage: "Repository URL",
 		},
 	},
 	Action: start,
 }
 
-func start(c *cli.Context) {
-	proxyHost := c.String("proxy")
-	backendHost := c.String("backend")
-	repositoryURLString := c.String("repository")
+func start(context *cli.Context) {
+	proxyURLString := context.String("proxy")
+	containerHostURLString := context.String("container-host")
+	repositoryURLString := context.String("repository")
 
-	if proxyHost == "" || backendHost == "" || repositoryURLString == "" {
-		cli.ShowCommandHelp(c, "start")
+	if proxyURLString == "" || containerHostURLString == "" || repositoryURLString == "" {
+		cli.ShowCommandHelp(context, "start")
 		os.Exit(1)
 	}
 
-	proxy := NewProxy(proxyHost, backendHost, repositoryURLString)
-	log.Fatal(proxy.Start())
+	proxyURLString = normalizeURLString(proxyURLString)
+	containerHostURLString = normalizeURLString(containerHostURLString)
+	repositoryURLString = normalizeRepositoryURLString(repositoryURLString)
+
+	logFields := log.Fields{
+		"proxy":          proxyURLString,
+		"container-host": containerHostURLString,
+		"repository":     repositoryURLString,
+	}
+
+	log.WithFields(logFields).Info("Start")
+
+	proxyURL, err := url.Parse(proxyURLString)
+	containerHostURL, err := url.Parse(containerHostURLString)
+	repositoryURL, err := url.Parse(repositoryURLString)
+
+	if err != nil {
+		log.WithFields(logFields).Fatal("Failed to parse URL")
+	}
+
+	proxy := NewProxy(proxyURL, containerHostURL, repositoryURL)
+	err = proxy.Start()
+
+	log.WithFields(log.Fields{"error": err}).Fatal("Stop a proxy")
 }
 
-var DebugCommand = cli.Command{
-	Name:  "debug",
-	Usage: "debug",
-	Flags: []cli.Flag{
-		cli.StringFlag{
-			Name: "repo",
-		},
-		cli.StringFlag{
-			Name: "revision",
-		},
-	},
-	Action: debug,
+var urlPattern = regexp.MustCompile("^[^:]+://")
+
+func normalizeURLString(urlString string) string {
+	if urlPattern.MatchString(urlString) {
+		return urlString
+	} else {
+		return "http://" + urlString
+	}
 }
 
-func debug(c *cli.Context) {
-	repo := c.String("repository")
-	revision := c.String("revision")
-
-	if repo == "" || revision == "" {
-		cli.ShowCommandHelp(c, "debug")
+func normalizeRepositoryURLString(urlString string) string {
+	if urlPattern.MatchString(urlString) {
+		return urlString
+	} else {
+		return "https://" + urlString
 	}
 }
