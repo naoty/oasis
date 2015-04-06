@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"net/url"
 	"os"
 	"os/exec"
@@ -56,8 +58,8 @@ func NewDockerClient(containerHostURL *url.URL) *docker.Client {
 func (workspace *Workspace) Setup(revision string) {
 	workspace.clone()
 	workspace.checkout(revision)
-	workspace.buildContainer()
-	// workspace.runContainer()
+	workspace.buildImage()
+	workspace.runContainer()
 	// workspace.updateIndex()
 }
 
@@ -70,39 +72,42 @@ func (workspace *Workspace) clone() error {
 	return err
 }
 
-func (workspace *Workspace) checkout(revision string) error {
-	logrus.WithFields(logrus.Fields{
-		"command": strings.Join([]string{"git", "checkout", revision}, " "),
-		"path":    workspace.Path,
-	}).Info("Command exec")
-
+func (workspace *Workspace) checkout(revision string) (string, error) {
 	workspace.Revision = revision
+	return workspace.exec("git", "checkout", revision)
+}
+
+func (workspace *Workspace) buildImage() (string, error) {
+	return workspace.exec("docker", "build", "-t", workspace.imageName(), ".")
+}
+
+func (workspace *Workspace) runContainer() (string, error) {
+	return workspace.exec("docker", "run", "-d", workspace.imageName())
+}
+
+func (workspace *Workspace) exec(commands ...string) (string, error) {
+	logrus.WithFields(logrus.Fields{
+		"path": workspace.Path,
+	}).Info(strings.Join(commands, " "))
 
 	currentDir, _ := filepath.Abs(".")
 	os.Chdir(workspace.Path)
 
-	command := exec.Command("git", "checkout", revision)
-	command.Stdout = os.Stdout
+	resultBuffer := bytes.NewBuffer(nil)
+
+	command := exec.Command(commands[0], commands[1:]...)
+	command.Stdout = resultBuffer
 	command.Stderr = os.Stderr
 	err := command.Run()
 
 	os.Chdir(currentDir)
 
-	return err
+	result := resultBuffer.Bytes()
+	return string(bytes.Trim(result, "\n")), err
 }
 
-func (workspace *Workspace) buildContainer() error {
-	options := docker.BuildImageOptions{
-		OutputStream: os.Stdout,
-		ContextDir:   workspace.Path,
-	}
-	err := workspace.DockerClient.BuildImage(options)
-
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"error": err,
-		}).Fatal("Failed to build an image")
-	}
-
-	return err
+func (workspace *Workspace) imageName() string {
+	dir, projectName := path.Split(workspace.Path)
+	username := path.Base(dir)
+	return fmt.Sprintf("%s/%s:%s", username, projectName, workspace.Revision)
 }
