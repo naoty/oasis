@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 type Proxy struct {
@@ -17,8 +17,8 @@ type Proxy struct {
 }
 
 func NewProxy(proxyURL, containerHostURL, repositoryURL *url.URL) *Proxy {
-	workspace := NewWorkspace(repositoryURL)
 	index := NewIndex(repositoryURL)
+	workspace := NewWorkspace(repositoryURL, containerHostURL, index)
 	return &Proxy{
 		URL:              proxyURL,
 		ContainerHostURL: containerHostURL,
@@ -32,7 +32,7 @@ func (proxy *Proxy) Start() error {
 	reverseProxy := &httputil.ReverseProxy{Director: director}
 	server := http.Server{Addr: proxy.URL.Host, Handler: reverseProxy}
 
-	log.WithFields(log.Fields{
+	logrus.WithFields(logrus.Fields{
 		"url": proxy.URL.String(),
 	}).Info("Start a proxy")
 
@@ -51,7 +51,7 @@ func (proxy *Proxy) newDirector() func(request *http.Request) {
 
 		targetURL := proxy.rewriteURL(request.URL, port)
 
-		log.WithFields(log.Fields{
+		logrus.WithFields(logrus.Fields{
 			"original": request.Host,
 			"target":   targetURL.Host,
 		}).Info("Redirect a request")

@@ -7,7 +7,7 @@ A HTTP proxy building docker containers for each commits
 ```sh
 % oasis start \
   --proxy feature.example.com \
-  --container-host "$(docker-machine ip dev)" \
+  --container-host "$(docker-machine url dev)" \
   --repository github.com/naoty/sample_rails_app
 ```
 

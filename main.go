@@ -5,9 +5,8 @@ import (
 	"os"
 	"regexp"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
-
-	log "github.com/Sirupsen/logrus"
 )
 
 func main() {
@@ -55,26 +54,26 @@ func start(context *cli.Context) {
 	containerHostURLString = normalizeURLString(containerHostURLString)
 	repositoryURLString = normalizeRepositoryURLString(repositoryURLString)
 
-	logFields := log.Fields{
+	logFields := logrus.Fields{
 		"proxy":          proxyURLString,
 		"container-host": containerHostURLString,
 		"repository":     repositoryURLString,
 	}
 
-	log.WithFields(logFields).Info("Start")
+	logrus.WithFields(logFields).Info("Start")
 
 	proxyURL, err := url.Parse(proxyURLString)
 	containerHostURL, err := url.Parse(containerHostURLString)
 	repositoryURL, err := url.Parse(repositoryURLString)
 
 	if err != nil {
-		log.WithFields(logFields).Fatal("Failed to parse URL")
+		logrus.WithFields(logFields).Fatal("Failed to parse URL")
 	}
 
 	proxy := NewProxy(proxyURL, containerHostURL, repositoryURL)
 	err = proxy.Start()
 
-	log.WithFields(log.Fields{"error": err}).Fatal("Stop a proxy")
+	logrus.WithFields(logrus.Fields{"error": err}).Fatal("Stop a proxy")
 }
 
 var urlPattern = regexp.MustCompile("^[^:]+://")
