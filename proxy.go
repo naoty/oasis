@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -17,7 +18,7 @@ type Proxy struct {
 }
 
 func NewProxy(proxyURL, containerHostURL, repositoryURL *url.URL) *Proxy {
-	index := NewIndex(repositoryURL)
+	index := NewIndex()
 	workspace := NewWorkspace(repositoryURL, containerHostURL, index)
 	return &Proxy{
 		URL:              proxyURL,
@@ -42,18 +43,16 @@ func (proxy *Proxy) Start() error {
 func (proxy *Proxy) newDirector() func(request *http.Request) {
 	return func(request *http.Request) {
 		subdomain := proxy.parseSubdomain(request.Host)
-		port, err := proxy.Index.LookupPort(subdomain)
+		port, err := proxy.Workspace.LookupPort(subdomain)
 
 		if err != nil {
-			proxy.Workspace.Setup(subdomain)
-			port = "8000"
+			port = proxy.Workspace.Setup(subdomain)
 		}
 
 		targetURL := proxy.rewriteURL(request.URL, port)
 
 		logrus.WithFields(logrus.Fields{
-			"original": request.Host,
-			"target":   targetURL.Host,
+			"target": targetURL.String(),
 		}).Info("Redirect a request")
 
 		request.URL = targetURL
@@ -67,9 +66,22 @@ func (proxy *Proxy) parseSubdomain(host string) string {
 
 func (proxy *Proxy) rewriteURL(originalURL *url.URL, port string) *url.URL {
 	return &url.URL{
-		Scheme:   proxy.ContainerHostURL.Scheme,
-		Host:     proxy.ContainerHostURL.Host + ":" + port,
+		Scheme:   proxy.rewriteScheme(originalURL.Scheme),
+		Host:     proxy.rewritePort(proxy.ContainerHostURL.Host, port),
 		Path:     originalURL.Path,
 		RawQuery: originalURL.RawQuery,
 	}
+}
+
+func (proxy *Proxy) rewriteScheme(scheme string) string {
+	if scheme == "" {
+		return "http"
+	} else {
+		return scheme
+	}
+}
+
+func (proxy *Proxy) rewritePort(host, port string) string {
+	elements := strings.Split(host, ":")
+	return fmt.Sprintf("%s:%s", elements[0], port)
 }

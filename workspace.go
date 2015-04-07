@@ -18,50 +18,32 @@ type Workspace struct {
 	Path          string
 	Revision      string
 	RepositoryURL *url.URL
-	DockerClient  *docker.Client
 	Index         *Index
 }
 
 func NewWorkspace(repositoryURL, containerHostURL *url.URL, index *Index) *Workspace {
 	currentUser, _ := user.Current()
 	localPath := path.Join(currentUser.HomeDir, ".oasis/repositories", repositoryURL.Host, repositoryURL.Path)
-	dockerClient := NewDockerClient(containerHostURL)
 	return &Workspace{
 		Path:          localPath,
 		Revision:      "",
 		RepositoryURL: repositoryURL,
-		DockerClient:  dockerClient,
 		Index:         index,
 	}
 }
 
-func NewDockerClient(containerHostURL *url.URL) *docker.Client {
-	dockerCertPath := os.Getenv("DOCKER_CERT_PATH")
-	ca := path.Join(dockerCertPath, "ca.pem")
-	cert := path.Join(dockerCertPath, "cert.pem")
-	key := path.Join(dockerCertPath, "key.pem")
-	client, err := docker.NewTLSClient(containerHostURL.String(), cert, key, ca)
-
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"path": dockerCertPath,
-			"ca":   ca,
-			"cert": cert,
-			"key":  key,
-		}).Fatal("Failed to initialize a docker client")
-	}
-
-	return client
+func (workspace *Workspace) LookupPort(revision string) (string, error) {
+	return workspace.Index.LookupPort(workspace.RepositoryURL, revision)
 }
 
-func (workspace *Workspace) Setup(revision string) {
+func (workspace *Workspace) Setup(revision string) string {
 	workspace.clone()
 	workspace.checkout(revision)
 	workspace.buildImage()
 	containerID, _ := workspace.runContainer()
 	hostPort, _ := workspace.inspectHostPort(containerID)
-	logrus.WithFields(logrus.Fields{"HostPort": hostPort}).Info("InspectHostPort")
-	// workspace.updateIndex()
+	workspace.updateIndex(revision, hostPort)
+	return hostPort
 }
 
 func (workspace *Workspace) clone() error {
@@ -89,6 +71,10 @@ func (workspace *Workspace) runContainer() (string, error) {
 func (workspace *Workspace) inspectHostPort(containerID string) (string, error) {
 	result, err := workspace.exec("docker", "port", containerID)
 	return workspace.parseHostPort(result), err
+}
+
+func (workspace *Workspace) updateIndex(revision, port string) error {
+	return workspace.Index.UpdatePort(workspace.RepositoryURL, revision, port)
 }
 
 func (workspace *Workspace) exec(commands ...string) (string, error) {
