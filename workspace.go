@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/fsouza/go-dockerclient"
 )
 
 type Workspace struct {
@@ -59,7 +58,9 @@ func (workspace *Workspace) Setup(revision string) {
 	workspace.clone()
 	workspace.checkout(revision)
 	workspace.buildImage()
-	workspace.runContainer()
+	containerID, _ := workspace.runContainer()
+	hostPort, _ := workspace.inspectHostPort(containerID)
+	logrus.WithFields(logrus.Fields{"HostPort": hostPort}).Info("InspectHostPort")
 	// workspace.updateIndex()
 }
 
@@ -82,7 +83,12 @@ func (workspace *Workspace) buildImage() (string, error) {
 }
 
 func (workspace *Workspace) runContainer() (string, error) {
-	return workspace.exec("docker", "run", "-d", workspace.imageName())
+	return workspace.exec("docker", "run", "-P", "-d", workspace.imageName())
+}
+
+func (workspace *Workspace) inspectHostPort(containerID string) (string, error) {
+	result, err := workspace.exec("docker", "port", containerID)
+	return workspace.parseHostPort(result), err
 }
 
 func (workspace *Workspace) exec(commands ...string) (string, error) {
@@ -110,4 +116,19 @@ func (workspace *Workspace) imageName() string {
 	dir, projectName := path.Split(workspace.Path)
 	username := path.Base(dir)
 	return fmt.Sprintf("%s/%s:%s", username, projectName, workspace.Revision)
+}
+
+func (workspace *Workspace) parseHostPort(formattedPorts string) string {
+	// formattedPorts is something like "3000/tcp -> 0.0.0.0:49155"
+	ports := strings.Split(formattedPorts, " -> ")
+	if len(ports) < 2 {
+		return ""
+	}
+
+	elements := strings.Split(ports[1], ":")
+	if len(elements) > 1 {
+		return elements[1]
+	} else {
+		return ""
+	}
 }
