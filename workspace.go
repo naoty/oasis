@@ -32,7 +32,8 @@ func NewWorkspace(repositoryURL, containerHostURL *url.URL, index *Index) *Works
 	}
 }
 
-func (workspace *Workspace) LookupPort(revision string) (string, error) {
+func (workspace *Workspace) LookupPort(revisionAlias string) (string, error) {
+	revision, _ := workspace.revParse(revisionAlias)
 	return workspace.Index.LookupPort(workspace.RepositoryURL, revision)
 }
 
@@ -55,6 +56,10 @@ func (workspace *Workspace) clone() error {
 	return err
 }
 
+func (workspace *Workspace) revParse(revisionAlias string) (string, error) {
+	return workspace.exec("git", "rev-parse", revisionAlias)
+}
+
 func (workspace *Workspace) checkout(revision string) (string, error) {
 	workspace.Revision = revision
 	return workspace.exec("git", "checkout", revision)
@@ -73,7 +78,8 @@ func (workspace *Workspace) inspectHostPort(containerID string) (string, error) 
 	return workspace.parseHostPort(result), err
 }
 
-func (workspace *Workspace) updateIndex(revision, port string) error {
+func (workspace *Workspace) updateIndex(revisionAlias, port string) error {
+	revision, _ := workspace.revParse(revisionAlias)
 	return workspace.Index.UpdatePort(workspace.RepositoryURL, revision, port)
 }
 
