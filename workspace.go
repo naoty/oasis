@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"net/url"
 	"os"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 )
@@ -42,6 +44,7 @@ func (workspace *Workspace) Setup(revision string) string {
 	workspace.checkout(revision)
 	workspace.buildImage()
 	containerID, _ := workspace.runContainer()
+	workspace.waitUntilContainerRunning(containerID)
 	hostPort, _ := workspace.inspectHostPort(containerID)
 	workspace.updateIndex(revision, hostPort)
 	return hostPort
@@ -71,6 +74,20 @@ func (workspace *Workspace) buildImage() (string, error) {
 
 func (workspace *Workspace) runContainer() (string, error) {
 	return workspace.exec("docker", "run", "-P", "-d", workspace.imageName())
+}
+
+func (workspace *Workspace) waitUntilContainerRunning(containerID string) {
+	running := "false"
+	counter := 0.0
+	for ; running == "false"; counter++ {
+		seconds := math.Pow(2, counter)
+		time.Sleep(time.Duration(seconds) * time.Second)
+
+		running, _ = workspace.exec("docker", "inspect", "-f", "{{ .State.Running }}", containerID)
+		logrus.WithFields(logrus.Fields{
+			"status": running,
+		}).Info("Wait until container running")
+	}
 }
 
 func (workspace *Workspace) inspectHostPort(containerID string) (string, error) {
