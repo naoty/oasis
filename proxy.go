@@ -45,7 +45,7 @@ func (proxy *Proxy) newDirector() func(request *http.Request) {
 		subdomain := proxy.parseSubdomain(request.Host)
 		port, err := proxy.Workspace.LookupPort(subdomain)
 
-		if err != nil {
+		if port == "" || err != nil {
 			port = proxy.Workspace.Setup(subdomain)
 		}
 
